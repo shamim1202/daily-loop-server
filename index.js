@@ -31,8 +31,31 @@ async function run() {
     const db = client.db("habitDB");
     const habitsCollection = db.collection("habits");
 
-    app.get("/habits", async (req, res) => {
-      const cursor = habitsCollection.find();
+    // Get latest 6 habits in descending order with limit-6 in Featured Habit
+    app.get("/featured_habits", async (req, res) => {
+      const projectFields = {
+        title: 1,
+        description: 1,
+        imageUrl: 1,
+        userName: 1,
+      };
+      const cursor = habitsCollection
+        .find()
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .project(projectFields);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    // Get specific user habit by email ----------------------------->
+    app.get("/my_habits", async (req, res) => {
+      const email = req.query.email;
+      const query = {};
+      if (email) {
+        query.userEmail = email;
+      }
+      const cursor = habitsCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -44,14 +67,15 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/habit", async (req, res) => {
+    // Add a new habit into the database ---------------------->
+    app.post("/add_habit", async (req, res) => {
       const newHabit = req.body;
       const result = await habitsCollection.insertOne(newHabit);
       res.send(result);
     });
 
-    app.patch("/habit/:id", async (req, res) => {
-      const id = req.params.id;
+    app.patch("/update_habit/:id", async (req, res) => {
+      const id = req.params;
       const updateHabit = req.body;
       const query = { _id: new ObjectId(id) };
       const update = {
@@ -61,8 +85,8 @@ async function run() {
       res.send(result);
     });
 
-    app.delete("/habit/:id", async (req, res) => {
-      const id = req.params.id;
+    app.delete("/delete_habit/:id", async (req, res) => {
+      const id = req.params;
       const query = { _id: new ObjectId(id) };
       const result = await habitsCollection.deleteOne(query);
       res.send(result);
