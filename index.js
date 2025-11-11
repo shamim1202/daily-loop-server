@@ -74,6 +74,7 @@ async function run() {
       res.send(result);
     });
 
+    // Update id wise habit ------------------------------>
     app.patch("/update_habit/:id", async (req, res) => {
       const id = req.params;
       const updateHabit = req.body;
@@ -85,8 +86,47 @@ async function run() {
       res.send(result);
     });
 
+    // Marks complete button ----------------------------->
+    app.patch("/habits/complete/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const query = { _id: new ObjectId(id) };
+
+        // Fetch the current habit
+        const habit = await habitsCollection.findOne(query);
+        if (!habit) {
+          return res.status(404).send({ message: "Habit not found" });
+        }
+
+        const today = new Date().toISOString().split("T")[0];
+        const completionHistory = habit.completionHistory || [];
+
+        // Prevent duplicate entry for the same date
+        if (completionHistory.includes(today)) {
+          return res.send({ message: "Already marked complete today" });
+        }
+
+        const updatedHistory = [...completionHistory, today];
+
+        const updateDoc = {
+          $set: {
+            completed: true,
+            completionHistory: updatedHistory,
+          },
+          $inc: { currentStreak: 1 },
+        };
+
+        const result = await habitsCollection.updateOne(query, updateDoc);
+        res.send(result);
+      } catch (error) {
+        console.error("Error marking habit complete:", error);
+        res.status(500).send({ message: "Failed to mark habit complete" });
+      }
+    });
+
+    // Delete specific id wise habit --------------------->
     app.delete("/delete_habit/:id", async (req, res) => {
-      const id = req.params;
+      const { id } = req.params;
       const query = { _id: new ObjectId(id) };
       const result = await habitsCollection.deleteOne(query);
       res.send(result);
