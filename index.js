@@ -48,7 +48,7 @@ async function run() {
       res.send(result);
     });
 
-    // Get specific user habit by email ----------------------------->
+    // Get specific user habit by email Api ----------------------->
     app.get("/my_habits", async (req, res) => {
       const email = req.query.email;
       const query = {};
@@ -60,6 +60,7 @@ async function run() {
       res.send(result);
     });
 
+    // Get the specific habit details Api ----------------------->
     app.get("/habits/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -67,14 +68,42 @@ async function run() {
       res.send(result);
     });
 
-    // Add a new habit into the database ---------------------->
+    // ✅ Get all public habits with optional search & category filter
+    app.get("/public_habits", async (req, res) => {
+      try {
+        const { category, search } = req.query; // get query params
+
+        const query = {};
+
+        if (category && category !== "All") {
+          query.category = category;
+        }
+
+        if (search) {
+          query.$or = [
+            { title: { $regex: search, $options: "i" } },
+            { description: { $regex: search, $options: "i" } },
+          ];
+        }
+
+        const cursor = habitsCollection.find(query);
+        const result = await cursor.toArray();
+
+        res.send(result);
+      } catch (error) {
+        console.error("Error fetching public habits:", error);
+        res.status(500).send({ message: "Failed to fetch public habits" });
+      }
+    });
+
+    // Add a new habit into the database Api ----------------->
     app.post("/add_habit", async (req, res) => {
       const newHabit = req.body;
       const result = await habitsCollection.insertOne(newHabit);
       res.send(result);
     });
 
-    // Update id wise habit ------------------------------>
+    // Update id wise habit Api ------------------------------>
     app.patch("/update_habit/:id", async (req, res) => {
       const id = req.params;
       const updateHabit = req.body;
@@ -86,45 +115,46 @@ async function run() {
       res.send(result);
     });
 
-    // Marks complete button ----------------------------->
+    // Marks complete button Api ----------------------------->
     app.patch("/habits/complete/:id", async (req, res) => {
       try {
         const { id } = req.params;
+        const { email } = req.body;
         const query = { _id: new ObjectId(id) };
 
-        // Fetch the current habit
         const habit = await habitsCollection.findOne(query);
-        if (!habit) {
-          return res.status(404).send({ message: "Habit not found" });
-        }
+        if (!habit) return res.status(404).send({ message: "Habit not found" });
 
         const today = new Date().toISOString().split("T")[0];
-        const completionHistory = habit.completionHistory || [];
 
-        // Prevent duplicate entry for the same date
-        if (completionHistory.includes(today)) {
+        // Check if user already completed today
+        const alreadyCompleted = habit.completionHistory?.some(
+          (entry) => entry.userEmail === email && entry.date === today
+        );
+
+        if (alreadyCompleted) {
           return res.send({ message: "Already marked complete today" });
         }
 
-        const updatedHistory = [...completionHistory, today];
-
+        // Push completion only for this user
         const updateDoc = {
-          $set: {
-            completed: true,
-            completionHistory: updatedHistory,
-          },
-          $inc: { currentStreak: 1 },
+          $push: { completionHistory: { userEmail: email, date: today } },
         };
 
-        const result = await habitsCollection.updateOne(query, updateDoc);
-        res.send(result);
+        await habitsCollection.updateOne(query, updateDoc);
+
+        res.send({
+          message: "Habit marked as complete",
+          today,
+          userEmail: email,
+        });
       } catch (error) {
         console.error("Error marking habit complete:", error);
         res.status(500).send({ message: "Failed to mark habit complete" });
       }
     });
 
-    // Delete specific id wise habit --------------------->
+    // Delete specific id wise habit Api --------------------->
     app.delete("/delete_habit/:id", async (req, res) => {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
