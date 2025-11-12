@@ -68,7 +68,7 @@ async function run() {
       res.send(result);
     });
 
-    // ✅ Get all public habits with optional search & category filter
+    // Get all public habits with optional search & category filter
     app.get("/public_habits", async (req, res) => {
       try {
         const { category, search } = req.query; // get query params
