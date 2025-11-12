@@ -184,6 +184,39 @@ async function run() {
       res.send(result);
     });
 
+    // Show 7days leaderboard Api ---------------------------->
+    app.get("/leaderboard", async (req, res) => {
+      try {
+        const habits = await habitsCollection.find().toArray();
+        const userMap = {};
+
+        habits.forEach((habit) => {
+          if (habit.completionHistory) {
+            habit.completionHistory.forEach((entry) => {
+              const email = entry.userEmail;
+              if (!userMap[email]) {
+                userMap[email] = {
+                  userEmail: email,
+                  userName: habit.userName || "Anonymous",
+                  totalStreak: 0,
+                };
+              }
+              userMap[email].totalStreak += 1;
+            });
+          }
+        });
+
+        const leaderboard = Object.values(userMap)
+          .sort((a, b) => b.totalStreak - a.totalStreak)
+          .slice(0, 3);
+
+        res.send(leaderboard);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Failed to load leaderboard" });
+      }
+    });
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
