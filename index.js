@@ -187,33 +187,34 @@ async function run() {
     // Show 7days leaderboard Api ---------------------------->
     app.get("/leaderboard", async (req, res) => {
       try {
-        const habits = await habitsCollection.find().toArray();
+        const db = client.db("habitDB");
+        const habitsCollection = db.collection("habits");
+        const allHabits = await habitsCollection.find().toArray();
         const userMap = {};
 
-        habits.forEach((habit) => {
-          if (habit.completionHistory) {
-            habit.completionHistory.forEach((entry) => {
-              const email = entry.userEmail;
-              if (!userMap[email]) {
-                userMap[email] = {
-                  userEmail: email,
-                  userName: habit.userName || "Anonymous",
-                  totalStreak: 0,
-                };
-              }
-              userMap[email].totalStreak += 1;
-            });
+        allHabits.forEach((habit) => {
+          if (!userMap[habit.userEmail]) {
+            userMap[habit.userEmail] = {
+              userEmail: habit.userEmail,
+              userName: habit.userName,
+              totalStreak: habit.currentStreak || 0,
+            };
+          } else {
+            userMap[habit.userEmail].totalStreak = Math.max(
+              userMap[habit.userEmail].totalStreak,
+              habit.currentStreak || 0
+            );
           }
         });
 
         const leaderboard = Object.values(userMap)
           .sort((a, b) => b.totalStreak - a.totalStreak)
-          .slice(0, 3);
+          .slice(0, 3); // top 3
 
         res.send(leaderboard);
-      } catch (error) {
-        console.error(error);
-        res.status(500).send({ message: "Failed to load leaderboard" });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ message: "Failed to fetch leaderboard" });
       }
     });
 
