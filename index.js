@@ -115,7 +115,7 @@ async function run() {
       res.send(result);
     });
 
-    // Marks complete button Api ----------------------------->
+    // Marks complete button Api
     app.patch("/habits/complete/:id", async (req, res) => {
       try {
         const { id } = req.params;
@@ -137,16 +137,38 @@ async function run() {
         }
 
         // Push completion only for this user
-        const updateDoc = {
-          $push: { completionHistory: { userEmail: email, date: today } },
-        };
+        const updatedCompletionHistory = [
+          ...(habit.completionHistory || []),
+          { userEmail: email, date: today },
+        ];
 
-        await habitsCollection.updateOne(query, updateDoc);
+        // Calculate new streak for this user
+        const userCompletions = updatedCompletionHistory
+          .filter((entry) => entry.userEmail === email)
+          .map((entry) => new Date(entry.date))
+          .sort((a, b) => b - a);
+
+        let streak = 0;
+        let current = new Date();
+        for (let i = 0; i < userCompletions.length; i++) {
+          const diffDays = Math.floor(
+            (current - userCompletions[i]) / (1000 * 60 * 60 * 24)
+          );
+          if (diffDays === i) streak++;
+          else break;
+        }
+
+        // Update in DB
+        await habitsCollection.updateOne(query, {
+          $set: { completionHistory: updatedCompletionHistory },
+          $max: { currentStreak: streak },
+        });
 
         res.send({
           message: "Habit marked as complete",
           today,
           userEmail: email,
+          currentStreak: streak,
         });
       } catch (error) {
         console.error("Error marking habit complete:", error);
